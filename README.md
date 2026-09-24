@@ -43,7 +43,7 @@ To change the look or behaviour, edit `template.html` (base depth, colour ramps,
 
 | File | Purpose |
 |---|---|
-| `kunanyi_block_model.html` | The deliverable: standalone interactive model |
+| `index.html` | The deliverable: standalone interactive model |
 | `kunanyi_preview.png` | Screenshot of the initial view |
 | `build_block_model.py` | Reads the DEM and builds the HTML |
 | `template.html` | Viewer source (HTML, CSS, JS and GLSL shaders) |
