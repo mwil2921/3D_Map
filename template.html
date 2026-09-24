@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kunanyi Block Model</title>
+<style>
+  :root {
+    --bg-top: #dfe7ee; --bg-bottom: #f6f4ef;
+    --panel: rgba(255, 255, 255, 0.86); --panel-border: rgba(30, 40, 50, 0.12);
+    --text: #1e2730; --muted: #5b6671; --accent: #2f6f5e; --track: #cfd6dc;
+    --shadow: 0 8px 30px rgba(20, 30, 40, 0.14);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg-top: #0f161d; --bg-bottom: #1d242b;
+      --panel: rgba(22, 28, 34, 0.86); --panel-border: rgba(255, 255, 255, 0.10);
+      --text: #e6ebef; --muted: #9aa6b1; --accent: #7cc4ad; --track: #3a444e;
+      --shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg-top: #0f161d; --bg-bottom: #1d242b;
+    --panel: rgba(22, 28, 34, 0.86); --panel-border: rgba(255, 255, 255, 0.10);
+    --text: #e6ebef; --muted: #9aa6b1; --accent: #7cc4ad; --track: #3a444e;
+    --shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--text);
+    background: linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+  }
+  #scene { position: fixed; inset: 0; }
+  #scene canvas { display: block; outline: none; }
+
+  .panel {
+    position: fixed; top: 16px; left: 16px; width: 300px;
+    max-height: calc(100% - 32px); overflow-y: auto;
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 12px; box-shadow: var(--shadow);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    padding: 16px 16px 12px;
+  }
+  .panel header { display: flex; align-items: start; justify-content: space-between; gap: 8px; }
+  h1 { font-size: 19px; line-height: 1.2; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 12.5px; margin: 4px 0 0; }
+  .icon-btn {
+    border: 1px solid var(--panel-border); background: transparent; color: var(--text);
+    border-radius: 8px; width: 30px; height: 30px; cursor: pointer; font-size: 15px; flex: none;
+  }
+  .panel.collapsed .body { display: none; }
+  .body { margin-top: 12px; }
+  section { border-top: 1px solid var(--panel-border); padding: 10px 0; }
+  section h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted); margin: 0 0 8px; font-weight: 600;
+  }
+  label.row { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; margin: 6px 0; }
+  label.row span.val { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12.5px; }
+  input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+  select, .btn {
+    font: inherit; font-size: 13px; color: var(--text); background: transparent;
+    border: 1px solid var(--panel-border); border-radius: 8px; padding: 5px 8px;
+  }
+  .btn { cursor: pointer; }
+  .btn:hover, .icon-btn:hover { border-color: var(--accent); }
+  .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .check { display: flex; align-items: center; gap: 8px; margin: 6px 0; cursor: pointer; }
+  .check input { accent-color: var(--accent); width: 16px; height: 16px; }
+  .inline { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin: 6px 0; }
+
+  .legend-bar { height: 12px; border-radius: 3px; border: 1px solid var(--panel-border); }
+  .legend-ticks { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); margin-top: 3px; font-variant-numeric: tabular-nums; }
+
+  dl.readout { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 0; font-size: 13px; }
+  dl.readout dt { color: var(--muted); }
+  dl.readout dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+  .note { color: var(--muted); font-size: 11.5px; margin: 6px 0 0; }
+  .note a { color: inherit; }
+
+  .label3d {
+    position: fixed; left: 0; top: 0; pointer-events: none; white-space: nowrap;
+    transform: translate(-50%, -100%); text-align: center;
+  }
+  .label3d .tag {
+    background: var(--panel); border: 1px solid var(--panel-border); box-shadow: var(--shadow);
+    border-radius: 8px; padding: 4px 9px; font-size: 12.5px;
+  }
+  .label3d .tag b { font-weight: 650; }
+  .label3d .stem { width: 1px; height: 26px; margin: 0 auto; background: var(--text); opacity: 0.6; }
+
+  #compass {
+    position: fixed; right: 16px; bottom: 16px; width: 64px; height: 64px;
+    background: var(--panel); border: 1px solid var(--panel-border); border-radius: 50%;
+    box-shadow: var(--shadow); cursor: pointer;
+  }
+  #compass svg { width: 100%; height: 100%; }
+  #loading {
+    position: fixed; inset: 0; display: grid; place-items: center; color: var(--muted); pointer-events: none;
+  }
+
+  @media (max-width: 640px) {
+    .panel { top: auto; bottom: 16px; left: 16px; right: 16px; width: auto; max-height: 55%; }
+    #compass { top: 16px; bottom: auto; width: 52px; height: 52px; }
+  }
+</style>
+</head>
+<body>
+<div id="scene" aria-label="Interactive 3D block model of kunanyi / Mt Wellington. Drag to rotate, scroll to zoom."></div>
+<div id="loading">Building terrain…</div>
+
+<aside class="panel" id="panel">
+  <header>
+    <div>
+      <h1>kunanyi / Mt Wellington</h1>
+      <p class="sub">3D block model · LIST 25 m DEM · Hobart municipality</p>
+    </div>
+    <button class="icon-btn" id="collapse" title="Hide controls" aria-expanded="true" aria-controls="panel-body">–</button>
+  </header>
+  <div class="body" id="panel-body">
+    <section>
+      <h2>Terrain</h2>
+      <label class="row">Vertical exaggeration <span class="val" id="exag-val">1.5×</span>
+        <input type="range" id="exag" min="1" max="4" step="0.1" value="1.5">
+      </label>
+      <div class="inline">
+        <span>Colour ramp</span>
+        <select id="ramp">
+          <option value="hypso">Hypsometric</option>
+          <option value="earth">Earth tones</option>
+          <option value="grey">Greyscale</option>
+          <option value="viridis">Viridis</option>
+        </select>
+      </div>
+      <label class="check"><input type="checkbox" id="contours" checked> Contours</label>
+      <div class="inline">
+        <span>Contour interval</span>
+        <select id="interval">
+          <option value="20">20 m</option>
+          <option value="50" selected>50 m</option>
+          <option value="100">100 m</option>
+          <option value="200">200 m</option>
+        </select>
+      </div>
+      <label class="check"><input type="checkbox" id="labels" checked> Summit label</label>
+      <div class="legend">
+        <div class="legend-bar" id="legend-bar"></div>
+        <div class="legend-ticks" id="legend-ticks"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Sun</h2>
+      <label class="row">Azimuth <span class="val" id="az-val">315°</span>
+        <input type="range" id="az" min="0" max="360" step="1" value="315">
+      </label>
+      <label class="row">Altitude <span class="val" id="alt-val">40°</span>
+        <input type="range" id="alt" min="5" max="90" step="1" value="40">
+      </label>
+    </section>
+
+    <section>
+      <h2>View</h2>
+      <div class="btn-grid">
+        <button class="btn" data-view="east">From the Derwent</button>
+        <button class="btn" data-view="north">From the north</button>
+        <button class="btn" data-view="southwest">From the south-west</button>
+        <button class="btn" data-view="plan">Plan view</button>
+      </div>
+      <label class="check" style="margin-top:8px"><input type="checkbox" id="spin"> Auto-rotate</label>
+      <div class="btn-grid" style="margin-top:6px">
+        <button class="btn" id="snapshot">Save PNG</button>
+        <button class="btn" id="theme">Toggle theme</button>
+      </div>
+      <p class="hint">Drag to rotate · right-drag or two fingers to pan · scroll or pinch to zoom.</p>
+    </section>
+
+    <section>
+      <h2>Point under cursor</h2>
+      <dl class="readout">
+        <dt>Elevation</dt><dd id="r-elev">–</dd>
+        <dt>Easting</dt><dd id="r-e">–</dd>
+        <dt>Northing</dt><dd id="r-n">–</dd>
+        <dt>Latitude</dt><dd id="r-lat">–</dd>
+        <dt>Longitude</dt><dd id="r-lon">–</dd>
+      </dl>
+      <p class="hint">Hover over (or tap) the terrain. Coordinates are GDA94 / MGA zone 55.</p>
+    </section>
+
+    <section>
+      <h2>About the data</h2>
+      <p class="note" id="about"></p>
+      <p class="note">DEM © State of Tasmania (LIST), <a href="http://creativecommons.org/licenses/by/3.0/au/" target="_blank" rel="noopener">CC BY 3.0 AU</a>. Extracted 13 January 2021. Rendered with three.js (MIT).</p>
+    </section>
+  </div>
+</aside>
+
+<div class="label3d" id="summit-label" hidden>
+  <div class="tag"><b>kunanyi / Mt Wellington</b><br><span id="summit-elev"></span></div>
+  <div class="stem"></div>
+</div>
+
+<button id="compass" title="Face north" aria-label="Compass. Click to face north.">
+  <svg viewBox="-32 -32 64 64" aria-hidden="true">
+    <g id="compass-rose">
+      <polygon points="0,-22 6,0 0,-4 -6,0" fill="#c8453a"/>
+      <polygon points="0,22 6,0 0,4 -6,0" fill="currentColor" opacity="0.45"/>
+      <text x="0" y="-24" text-anchor="middle" font-size="10" font-weight="700" fill="currentColor" dominant-baseline="auto">N</text>
+    </g>
+  </svg>
+</button>
+
+<script>/*__THREE__*/</script>
+<script>/*__ORBIT__*/</script>
+<script>
+"use strict";
+const META = /*__META__*/null;
+const DEM_B64 = "__DEM_B64__";
+
+// ---------- constants -------------------------------------------------------
+const KM = 0.001;          // scene units are kilometres
+const BASE_ELEV = -250;    // block base (m, not exaggerated) - presentation only
+const { ncols: NC, nrows: NR, cellsize: CS } = META;
+
+// ---------- decode heights --------------------------------------------------
+const bytes = Uint8Array.from(atob(DEM_B64), ch => ch.charCodeAt(0));
+const raw = new Uint16Array(bytes.buffer);
+const H = new Float32Array(NC * NR);       // metres, NaN = NoData
+for (let k = 0; k < raw.length; k++) H[k] = raw[k] === META.nodata ? NaN : raw[k] * META.scale;
+
+// Cell centre coordinates (MGA55).
+const E0 = META.xll + CS / 2;                     // easting of column 0
+const N0 = META.yll + (NR - 0.5) * CS;            // northing of row 0
+const EC = META.xll + NC * CS / 2;                // block centre
+const NCn = META.yll + NR * CS / 2;
+const toX = e => (e - EC) * KM;
+const toZ = n => -(n - NCn) * KM;                 // north is -z
+
+// ---------- geometry --------------------------------------------------------
+const vIndex = new Int32Array(NC * NR).fill(-1);
+let nv = 0;
+for (let k = 0; k < H.length; k++) if (!isNaN(H[k])) vIndex[k] = nv++;
+
+const topPos = new Float32Array(nv * 3);
+const topElev = new Float32Array(nv);
+for (let i = 0; i < NR; i++) for (let j = 0; j < NC; j++) {
+  const k = i * NC + j, v = vIndex[k];
+  if (v < 0) continue;
+  topPos[v * 3] = toX(E0 + j * CS);
+  topPos[v * 3 + 2] = toZ(N0 - i * CS);
+  topElev[v] = H[k];
+}
+
+// Quads where all four corners have data; boundary edges found by summing
+// directed edge traversals (shared interior edges cancel to zero).
+const tris = [];
+const edgeV = new Int8Array(NC * NR);   // (i,j)-(i+1,j)
+const edgeH = new Int8Array(NC * NR);   // (i,j)-(i,j+1)
+for (let i = 0; i < NR - 1; i++) for (let j = 0; j < NC - 1; j++) {
+  const a = vIndex[i * NC + j], b = vIndex[i * NC + j + 1];
+  const c = vIndex[(i + 1) * NC + j], d = vIndex[(i + 1) * NC + j + 1];
+  if (a < 0 || b < 0 || c < 0 || d < 0) continue;
+  tris.push(a, c, d, a, d, b);
+  edgeV[i * NC + j] += 1;            // a -> c
+  edgeV[i * NC + j + 1] -= 1;        // d -> b
+  edgeH[i * NC + j] -= 1;            // b -> a
+  edgeH[(i + 1) * NC + j] += 1;      // c -> d
+}
+const topIndex = new Uint32Array(tris);
+
+const topGeo = new THREE.BufferGeometry();
+topGeo.setAttribute("position", new THREE.BufferAttribute(topPos, 3));
+topGeo.setAttribute("elev", new THREE.BufferAttribute(topElev, 1));
+topGeo.setIndex(new THREE.BufferAttribute(topIndex, 1));
+
+// Walls: one vertical quad per boundary edge, p -> q with the solid on the left.
+const wallEdges = [];
+for (let i = 0; i < NR; i++) for (let j = 0; j < NC; j++) {
+  const k = i * NC + j;
+  if (edgeV[k] === 1) wallEdges.push(k, k + NC);
+  else if (edgeV[k] === -1) wallEdges.push(k + NC, k);
+  if (edgeH[k] === 1) wallEdges.push(k, k + 1);
+  else if (edgeH[k] === -1) wallEdges.push(k + 1, k);
+}
+const nWalls = wallEdges.length / 2;
+const wallPos = new Float32Array(nWalls * 12);
+const wallNrm = new Float32Array(nWalls * 12);
+const wallElev = new Float32Array(nWalls * 4);   // true elevation at vertex
+const wallTop = new Float32Array(nWalls * 4);    // surface elevation above vertex
+const wallCell = new Int32Array(nWalls * 4);     // cell for top vertices, -1 for base
+const wallIdx = new Uint32Array(nWalls * 6);
+for (let w = 0; w < nWalls; w++) {
+  const p = wallEdges[2 * w], q = wallEdges[2 * w + 1];
+  const px = toX(E0 + (p % NC) * CS), pz = toZ(N0 - Math.floor(p / NC) * CS);
+  const qx = toX(E0 + (q % NC) * CS), qz = toZ(N0 - Math.floor(q / NC) * CS);
+  const verts = [[px, pz, p, true], [qx, qz, q, true], [qx, qz, q, false], [px, pz, p, false]];
+  // outward normal: travel direction rotated to the right (viewed from above)
+  const dx = qx - px, dz = qz - pz, len = Math.hypot(dx, dz);
+  const nx = -dz / len, nz = dx / len;
+  verts.forEach(([x, z, cell, top], m) => {
+    const o = w * 4 + m;
+    wallPos[o * 3] = x; wallPos[o * 3 + 2] = z;
+    wallNrm[o * 3] = nx; wallNrm[o * 3 + 2] = nz;
+    wallElev[o] = top ? H[cell] : BASE_ELEV;
+    wallTop[o] = H[cell];
+    wallCell[o] = top ? cell : -1;
+  });
+  const o = w * 4;
+  wallIdx.set([o, o + 3, o + 2, o, o + 2, o + 1], w * 6);
+}
+const wallGeo = new THREE.BufferGeometry();
+wallGeo.setAttribute("position", new THREE.BufferAttribute(wallPos, 3));
+wallGeo.setAttribute("normal", new THREE.BufferAttribute(wallNrm, 3));
+wallGeo.setAttribute("elev", new THREE.BufferAttribute(wallElev, 1));
+wallGeo.setAttribute("topElev", new THREE.BufferAttribute(wallTop, 1));
+wallGeo.setIndex(new THREE.BufferAttribute(wallIdx, 1));
+
+// Base: the same footprint, flat and facing down.
+const basePos = new Float32Array(topPos);
+for (let v = 0; v < nv; v++) basePos[v * 3 + 1] = BASE_ELEV * KM;
+const baseIdx = new Uint32Array(topIndex.length);
+for (let t = 0; t < topIndex.length; t += 3) {
+  baseIdx[t] = topIndex[t]; baseIdx[t + 1] = topIndex[t + 2]; baseIdx[t + 2] = topIndex[t + 1];
+}
+const baseGeo = new THREE.BufferGeometry();
+baseGeo.setAttribute("position", new THREE.BufferAttribute(basePos, 3));
+baseGeo.setIndex(new THREE.BufferAttribute(baseIdx, 1));
+
+// ---------- colour ramps ----------------------------------------------------
+const RAMPS = {
+  hypso: [[0, "#4f7f45"], [0.08, "#6f9a55"], [0.22, "#a7b56f"], [0.4, "#d2c48c"],
+          [0.58, "#c09a68"], [0.75, "#9a7556"], [0.9, "#a79d93"], [1, "#f4f2ee"]],
+  earth: [[0, "#2f4a3a"], [0.25, "#58704a"], [0.5, "#8c8456"], [0.75, "#a67e5b"], [1, "#e9dcc6"]],
+  grey:  [[0, "#6d6d6d"], [1, "#f2f2f2"]],
+  viridis: [[0, "#440154"], [0.25, "#3b528b"], [0.5, "#21918c"], [0.75, "#5ec962"], [1, "#fde725"]],
+};
+const RAMP_W = 256;
+const rampData = new Uint8Array(RAMP_W * 4);
+const rampTex = new THREE.DataTexture(rampData, RAMP_W, 1, THREE.RGBAFormat);
+rampTex.magFilter = rampTex.minFilter = THREE.LinearFilter;
+rampTex.wrapS = THREE.ClampToEdgeWrapping;
+function setRamp(name) {
+  const stops = RAMPS[name].map(([t, hex]) => [t, new THREE.Color(hex)]);
+  for (let x = 0; x < RAMP_W; x++) {
+    const t = x / (RAMP_W - 1);
+    let s = 0;
+    while (s < stops.length - 2 && t > stops[s + 1][0]) s++;
+    const [t0, c0] = stops[s], [t1, c1] = stops[s + 1];
+    const c = c0.clone().lerp(c1, Math.min(1, Math.max(0, (t - t0) / (t1 - t0))));
+    rampData.set([c.r * 255, c.g * 255, c.b * 255, 255], x * 4);
+  }
+  rampTex.needsUpdate = true;
+  document.getElementById("legend-bar").style.background =
+    `linear-gradient(90deg, ${RAMPS[name].map(([t, h]) => `${h} ${t * 100}%`).join(", ")})`;
+}
+
+// ---------- materials -------------------------------------------------------
+const shared = {
+  sunDir: { value: new THREE.Vector3(0, 1, 0) },
+};
+const terrainMat = new THREE.ShaderMaterial({
+  uniforms: {
+    sunDir: shared.sunDir,
+    ramp: { value: rampTex },
+    zRange: { value: new THREE.Vector2(0, Math.ceil(META.zmax / 50) * 50) },
+    interval: { value: 50 },
+    showContours: { value: 1 },
+    lineColor: { value: new THREE.Color(0x2a2118) },
+    hover: { value: new THREE.Vector3(0, 0, -1) },   // x, z, radius (<0 off)
+  },
+  vertexShader: `
+    attribute float elev;
+    varying float vElev; varying vec3 vNormal; varying vec2 vXZ;
+    void main() {
+      vElev = elev; vNormal = normal; vXZ = position.xz;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: `
+    uniform vec3 sunDir; uniform sampler2D ramp; uniform vec2 zRange;
+    uniform float interval; uniform float showContours; uniform vec3 lineColor; uniform vec3 hover;
+    varying float vElev; varying vec3 vNormal; varying vec2 vXZ;
+    void main() {
+      float t = clamp((vElev - zRange.x) / (zRange.y - zRange.x), 0.0, 1.0);
+      vec3 base = texture2D(ramp, vec2(t, 0.5)).rgb;
+      vec3 n = normalize(vNormal);
+      float diff = max(dot(n, sunDir), 0.0);
+      float sky = 0.5 + 0.5 * n.y;
+      vec3 col = base * (0.30 + 0.18 * sky + 0.72 * diff);
+      if (showContours > 0.5) {
+        float f = vElev / interval;
+        float w = fwidth(f);
+        float d = abs(fract(f - 0.5) - 0.5) / max(w, 1e-4);
+        bool major = mod(floor(f + 0.5), 5.0) < 0.5;
+        float lw = major ? 1.1 : 0.6;
+        float line = 1.0 - smoothstep(lw - 0.5, lw + 0.5, d);
+        line *= smoothstep(0.35, 0.12, w);          // fade when lines crowd together
+        col = mix(col, lineColor, line * (major ? 0.5 : 0.28));
+      }
+      if (hover.z > 0.0) {
+        float r = length(vXZ - hover.xy);
+        float ring = 1.0 - smoothstep(0.0, fwidth(r) * 1.5, abs(r - hover.z));
+        col = mix(col, vec3(1.0, 0.25, 0.15), ring * 0.9);
+      }
+      gl_FragColor = vec4(col, 1.0);
+    }`,
+  extensions: { derivatives: true },
+});
+
+const wallMat = new THREE.ShaderMaterial({
+  uniforms: { sunDir: shared.sunDir },
+  vertexShader: `
+    attribute float elev; attribute float topElev;
+    varying float vElev; varying float vTop; varying vec3 vNormal;
+    void main() {
+      vElev = elev; vTop = topElev; vNormal = normal;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: `
+    uniform vec3 sunDir;
+    varying float vElev; varying float vTop; varying vec3 vNormal;
+    float hash(float x) { return fract(sin(x * 127.1) * 43758.5453); }
+    void main() {
+      float depth = vTop - vElev;                    // metres below the surface
+      float band = floor(vElev / 60.0);
+      vec3 rock = mix(vec3(0.47, 0.41, 0.35), vec3(0.58, 0.52, 0.44), hash(band));
+      rock *= 0.9 + 0.1 * sin(vElev * 0.9);
+      vec3 soil = vec3(0.33, 0.25, 0.18);
+      vec3 col = mix(soil, rock, smoothstep(6.0, 22.0, depth));
+      col *= mix(0.7, 1.0, smoothstep(${BASE_ELEV.toFixed(1)}, ${(BASE_ELEV + 250).toFixed(1)}, vElev));
+      float diff = max(dot(normalize(vNormal), sunDir), 0.0);
+      col *= 0.55 + 0.55 * diff;
+      gl_FragColor = vec4(col, 1.0);
+    }`,
+});
+const baseMat = new THREE.MeshBasicMaterial({ color: 0x2b2622 });
+
+// ---------- scene -----------------------------------------------------------
+const container = document.getElementById("scene");
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.05, 200);
+const terrain = new THREE.Mesh(topGeo, terrainMat);
+const walls = new THREE.Mesh(wallGeo, wallMat);
+const base = new THREE.Mesh(baseGeo, baseMat);
+scene.add(terrain, walls, base);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.maxPolarAngle = Math.PI * 0.495;
+controls.minDistance = 1.5;
+controls.maxDistance = 60;
+controls.autoRotateSpeed = 0.6;
+
+// ---------- vertical exaggeration ------------------------------------------
+let exag = 1.5;
+function applyExaggeration(x) {
+  exag = x;
+  const s = KM * exag;
+  for (let v = 0; v < nv; v++) topPos[v * 3 + 1] = topElev[v] * s;
+  topGeo.attributes.position.needsUpdate = true;
+  topGeo.computeVertexNormals();
+  topGeo.computeBoundingSphere();
+  for (let o = 0; o < wallCell.length; o++) {
+    wallPos[o * 3 + 1] = wallCell[o] >= 0 ? H[wallCell[o]] * s : BASE_ELEV * KM;
+  }
+  wallGeo.attributes.position.needsUpdate = true;
+  wallGeo.computeBoundingSphere();
+  document.getElementById("exag-val").textContent = exag.toFixed(1) + "×";
+}
+
+// ---------- sun ---------------------------------------------------------------
+function setSun(azDeg, altDeg) {
+  const az = THREE.MathUtils.degToRad(azDeg), alt = THREE.MathUtils.degToRad(altDeg);
+  // azimuth clockwise from north; north = -z, east = +x
+  shared.sunDir.value.set(Math.sin(az) * Math.cos(alt), Math.sin(alt), -Math.cos(az) * Math.cos(alt));
+  document.getElementById("az-val").textContent = azDeg + "°";
+  document.getElementById("alt-val").textContent = altDeg + "°";
+}
+
+// ---------- height sampling & picking ----------------------------------------
+function heightAt(x, z) {                   // scene x,z -> metres (bilinear), NaN outside
+  const e = x / KM + EC, n = -z / KM + NCn;
+  const fc = (e - E0) / CS, fr = (N0 - n) / CS;
+  const j = Math.floor(fc), i = Math.floor(fr);
+  if (i < 0 || j < 0 || i >= NR - 1 || j >= NC - 1) return NaN;
+  const u = fc - j, w = fr - i;
+  const h00 = H[i * NC + j], h01 = H[i * NC + j + 1], h10 = H[(i + 1) * NC + j], h11 = H[(i + 1) * NC + j + 1];
+  return (h00 * (1 - u) + h01 * u) * (1 - w) + (h10 * (1 - u) + h11 * u) * w;
+}
+const HALF_W = NC * CS * KM / 2, HALF_D = NR * CS * KM / 2;
+function pickTerrain(ray) {
+  // clip the ray to the block's bounding box, then march and bisect
+  const box = new THREE.Box3(new THREE.Vector3(-HALF_W, BASE_ELEV * KM, -HALF_D),
+                             new THREE.Vector3(HALF_W, META.zmax * KM * exag + 0.01, HALF_D));
+  const entry = ray.intersectBox(box, new THREE.Vector3());
+  if (!entry) return null;
+  let t = ray.origin.distanceTo(entry);
+  const far = t + box.getSize(new THREE.Vector3()).length();
+  const step = 0.008, p = new THREE.Vector3();
+  const below = tt => {
+    ray.at(tt, p);
+    const h = heightAt(p.x, p.z);
+    return !isNaN(h) && p.y <= h * KM * exag;
+  };
+  for (let prev = t; t < far; prev = t, t += step) {
+    if (below(t)) {
+      let lo = prev, hi = t;
+      for (let k = 0; k < 12; k++) { const mid = (lo + hi) / 2; if (below(mid)) hi = mid; else lo = mid; }
+      ray.at(hi, p);
+      return { x: p.x, z: p.z, elev: heightAt(p.x, p.z) };
+    }
+    ray.at(t, p);
+    if (p.y < BASE_ELEV * KM) break;
+  }
+  return null;
+}
+
+// ---------- MGA55 -> latitude/longitude (GRS80, Krüger series) ----------------
+function mgaToLatLon(E, N) {
+  const a = 6378137, f = 1 / 298.257222101, k0 = 0.9996;
+  const n = f / (2 - f), n2 = n * n, n3 = n2 * n;
+  const A = a / (1 + n) * (1 + n2 / 4 + n2 * n2 / 64);
+  const beta = [n / 2 - 2 * n2 / 3 + 37 * n3 / 96, n2 / 48 + n3 / 15, 17 * n3 / 480];
+  const delta = [2 * n - 2 * n2 / 3 - 2 * n3, 7 * n2 / 3 - 8 * n3 / 5, 56 * n3 / 15];
+  const xi = (N - 10000000) / (k0 * A), eta = (E - 500000) / (k0 * A);
+  let xp = xi, ep = eta;
+  for (let j = 1; j <= 3; j++) {
+    xp -= beta[j - 1] * Math.sin(2 * j * xi) * Math.cosh(2 * j * eta);
+    ep -= beta[j - 1] * Math.cos(2 * j * xi) * Math.sinh(2 * j * eta);
+  }
+  const chi = Math.asin(Math.sin(xp) / Math.cosh(ep));
+  let phi = chi;
+  for (let j = 1; j <= 3; j++) phi += delta[j - 1] * Math.sin(2 * j * chi);
+  const lam = 147 * Math.PI / 180 + Math.atan2(Math.sinh(ep), Math.cos(xp));
+  return [phi * 180 / Math.PI, lam * 180 / Math.PI];
+}
+
+const fmt = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
+const readout = id => document.getElementById(id);
+function showPoint(hit) {
+  if (!hit) {
+    ["r-elev", "r-e", "r-n", "r-lat", "r-lon"].forEach(id => readout(id).textContent = "–");
+    terrainMat.uniforms.hover.value.z = -1;
+    return;
+  }
+  const E = hit.x / KM + EC, N = -hit.z / KM + NCn;
+  const [lat, lon] = mgaToLatLon(E, N);
+  readout("r-elev").textContent = hit.elev.toFixed(1) + " m";
+  readout("r-e").textContent = fmt.format(E) + " mE";
+  readout("r-n").textContent = fmt.format(N) + " mN";
+  readout("r-lat").textContent = Math.abs(lat).toFixed(5) + "° S";
+  readout("r-lon").textContent = lon.toFixed(5) + "° E";
+  terrainMat.uniforms.hover.value.set(hit.x, hit.z, Math.max(0.04, camera.position.distanceTo(controls.target) * 0.006));
+}
+
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let pickQueued = false, lastEvent = null;
+function queuePick(ev) {
+  lastEvent = ev;
+  if (pickQueued) return;
+  pickQueued = true;
+  requestAnimationFrame(() => {
+    pickQueued = false;
+    const r = renderer.domElement.getBoundingClientRect();
+    pointer.set(((lastEvent.clientX - r.left) / r.width) * 2 - 1, -((lastEvent.clientY - r.top) / r.height) * 2 + 1);
+    raycaster.setFromCamera(pointer, camera);
+    showPoint(pickTerrain(raycaster.ray));
+  });
+}
+renderer.domElement.addEventListener("pointermove", queuePick);
+renderer.domElement.addEventListener("pointerdown", queuePick);
+renderer.domElement.addEventListener("pointerleave", () => showPoint(null));
+
+// ---------- summit label ------------------------------------------------------
+const S = META.summit;
+const summitLabel = document.getElementById("summit-label");
+document.getElementById("summit-elev").textContent = `${S.elev.toFixed(1)} m (DEM high point)`;
+const summitVec = new THREE.Vector3();
+function updateLabel() {
+  if (!document.getElementById("labels").checked) { summitLabel.hidden = true; return; }
+  summitVec.set(toX(S.e), S.elev * KM * exag, toZ(S.n)).project(camera);
+  const visible = summitVec.z < 1;
+  summitLabel.hidden = !visible;
+  if (visible) {
+    summitLabel.style.left = ((summitVec.x + 1) / 2 * window.innerWidth) + "px";
+    summitLabel.style.top = ((1 - summitVec.y) / 2 * window.innerHeight) + "px";
+  }
+}
+
+// ---------- views -------------------------------------------------------------
+const VIEWS = {   // camera azimuth (deg clockwise from north, direction camera sits), elevation, distance
+  east:      { az: 100, el: 30, dist: 25 },
+  north:     { az: 15,  el: 32, dist: 25 },
+  southwest: { az: 220, el: 30, dist: 25 },
+  plan:      { az: 0,   el: 89.4, dist: 30 },
+};
+let tween = null;
+function goTo(name, instant = false) {
+  const v = VIEWS[name];
+  const az = THREE.MathUtils.degToRad(v.az), el = THREE.MathUtils.degToRad(v.el);
+  const target = new THREE.Vector3(0, 0.2 * exag, 0);
+  const pos = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el))
+    .multiplyScalar(v.dist * Math.max(1, 0.8 / camera.aspect)).add(target);   // back off on portrait screens
+  if (instant) { camera.position.copy(pos); controls.target.copy(target); controls.update(); return; }
+  tween = { t0: performance.now(), p0: camera.position.clone(), q0: controls.target.clone(), p1: pos, q1: target };
+}
+function stepTween(now) {
+  if (!tween) return;
+  const k = Math.min(1, (now - tween.t0) / 900), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+  camera.position.lerpVectors(tween.p0, tween.p1, e);
+  controls.target.lerpVectors(tween.q0, tween.q1, e);
+  if (k >= 1) tween = null;
+}
+controls.addEventListener("start", () => { tween = null; });
+
+// ---------- compass -------------------------------------------------------------
+const rose = document.getElementById("compass-rose");
+function updateCompass() {
+  const d = new THREE.Vector3().subVectors(controls.target, camera.position);
+  const heading = Math.atan2(d.x, -d.z);                 // radians clockwise from north
+  rose.setAttribute("transform", `rotate(${-THREE.MathUtils.radToDeg(heading)})`);
+}
+document.getElementById("compass").addEventListener("click", () => {
+  const d = camera.position.distanceTo(controls.target);
+  const el = Math.asin(Math.min(1, (camera.position.y - controls.target.y) / d));
+  VIEWS._north = { az: 180, el: THREE.MathUtils.radToDeg(el), dist: d };
+  goTo("_north");
+});
+
+// ---------- UI wiring -----------------------------------------------------------
+const $ = id => document.getElementById(id);
+$("exag").addEventListener("input", e => applyExaggeration(parseFloat(e.target.value)));
+$("ramp").addEventListener("change", e => setRamp(e.target.value));
+$("contours").addEventListener("change", e => terrainMat.uniforms.showContours.value = e.target.checked ? 1 : 0);
+$("interval").addEventListener("change", e => terrainMat.uniforms.interval.value = parseFloat(e.target.value));
+$("az").addEventListener("input", () => setSun(+$("az").value, +$("alt").value));
+$("alt").addEventListener("input", () => setSun(+$("az").value, +$("alt").value));
+$("spin").addEventListener("change", e => controls.autoRotate = e.target.checked);
+document.querySelectorAll("[data-view]").forEach(b => b.addEventListener("click", () => goTo(b.dataset.view)));
+$("snapshot").addEventListener("click", () => {
+  renderer.render(scene, camera);
+  const a = document.createElement("a");
+  a.download = "kunanyi-block-model.png";
+  a.href = renderer.domElement.toDataURL("image/png");
+  a.click();
+});
+$("theme").addEventListener("click", () => {
+  const root = document.documentElement;
+  const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  root.dataset.theme = dark ? "light" : "dark";
+});
+$("collapse").addEventListener("click", () => {
+  const p = $("panel"), collapsed = p.classList.toggle("collapsed");
+  $("collapse").textContent = collapsed ? "+" : "–";
+  $("collapse").setAttribute("aria-expanded", String(!collapsed));
+  fitViewport();
+});
+
+const zTop = terrainMat.uniforms.zRange.value.y;
+$("legend-ticks").innerHTML = [0, 0.25, 0.5, 0.75, 1].map(t => `<span>${Math.round(t * zTop)} m</span>`).join("");
+const widthKm = (NC * CS / 1000).toFixed(1), depthKm = (NR * CS / 1000).toFixed(1);
+$("about").textContent =
+  `LIST 25 m DEM, ${NC} × ${NR} cells (${widthKm} × ${depthKm} km), GDA94 / MGA zone 55. ` +
+  `The data are clipped to Hobart municipality, so the block footprint follows that boundary and ` +
+  `the western plateau beyond the summit is cut off. Heights range ${META.zmin.toFixed(0)}–${META.zmax.toFixed(1)} m ` +
+  `(the published summit height is 1271 m). Block walls and base (${BASE_ELEV} m) are presentation only, not geology.`;
+
+// On wide screens, shift the projection centre so the block sits in the space beside the panel.
+function fitViewport() {
+  const w = window.innerWidth, h = window.innerHeight;
+  camera.aspect = w / h;
+  const shift = w > 640 && !$("panel").classList.contains("collapsed") ? $("panel").offsetWidth + 16 : 0;
+  if (shift) camera.setViewOffset(w + shift, h, 0, 0, w, h); else camera.clearViewOffset();
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+window.addEventListener("resize", fitViewport);
+
+// ---------- start -------------------------------------------------------------
+if (window.innerWidth <= 640) $("collapse").click();   // small screens: show the model first
+fitViewport();
+setRamp("hypso");
+setSun(315, 40);
+applyExaggeration(1.5);
+goTo("east", true);
+$("loading").remove();
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  stepTween(now);
+  controls.update();
+  updateLabel();
+  updateCompass();
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(animate);
+window.__model = { nv, triangles: topIndex.length / 3, walls: nWalls, renderer, camera, applyExaggeration, goTo,
+  pickTerrain, heightAt, mgaToLatLon, toX, toZ, summit: META.summit };
+</script>
+</body>
+</html>
