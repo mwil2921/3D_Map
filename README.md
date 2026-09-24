@@ -1,6 +1,6 @@
 # kunanyi / Mt Wellington – interactive 3D block model
 
-Open **`kunanyi_block_model.html`** in any modern browser. It is a single self-contained file (1.3 MB) that needs no server or internet connection.
+Open **`index.html`** in any modern browser. It is a single self-contained file (1.3 MB) that needs no server or internet connection.
 
 ![Initial view](kunanyi_preview.png)
 
